@@ -12,6 +12,11 @@ Parameters
 
 * **security.encoder.bcrypt.cost** (optional): Defines BCrypt password encoder cost. Defaults to 13.
 
+* **security.role_hierarchy**:(optional): Defines a map of roles including other roles.
+
+* **security.access_rules** (optional): Defines rules based on paths and roles.
+  See `Defining Access Rule <#defining-access-rules>`_.
+
 Services
 --------
 
@@ -22,11 +27,11 @@ Services
 
 * **security.authentication_manager**: An instance of
   `AuthenticationProviderManager
-  <http://api.symfony.com/master/Symfony/Component/Security/Core/Authentication/AuthenticationProviderManager.html>`_,
+  <https://api.symfony.com/master/Symfony/Component/Security/Core/Authentication/AuthenticationProviderManager.html>`_,
   responsible for authentication.
 
 * **security.access_manager**: An instance of `AccessDecisionManager
-  <http://api.symfony.com/master/Symfony/Component/Security/Core/Authorization/AccessDecisionManager.html>`_,
+  <https://api.symfony.com/master/Symfony/Component/Security/Core/Authorization/AccessDecisionManager.html>`_,
   responsible for authorization.
 
 * **security.session_strategy**: Define the session strategy used for
@@ -34,8 +39,11 @@ Services
 
 * **security.user_checker**: Checks user flags after authentication.
 
-* **security.last_error**: Returns the last authentication errors when given a
-  Request object.
+* **security.last_error**: Returns the last authentication error message when
+  given a Request object.
+
+* **security.authentication_utils**: Returns the AuthenticationUtils service
+  allowing you to get last authentication exception or last username.
 
 * **security.encoder_factory**: Defines the encoding strategies for user
   passwords (uses ``security.default_encoder``).
@@ -90,7 +98,7 @@ Usage
 
 The Symfony Security component is powerful. To learn more about it, read the
 `Symfony Security documentation
-<http://symfony.com/doc/2.8/book/security.html>`_.
+<https://symfony.com/doc/current/security.html>`_.
 
 .. tip::
 
@@ -117,7 +125,7 @@ is known, you can get it with a call to ``getUser()``::
 
 The user can be a string, an object with a ``__toString()`` method, or an
 instance of `UserInterface
-<http://api.symfony.com/master/Symfony/Component/Security/Core/User/UserInterface.html>`_.
+<https://api.symfony.com/master/Symfony/Component/Security/Core/User/UserInterface.html>`_.
 
 Securing a Path with HTTP Authentication
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -143,10 +151,10 @@ entry defines valid users.
 If you want to restrict the firewall by more than the URL pattern (like the
 HTTP method, the client IP, the hostname, or any Request attributes), use an
 instance of a `RequestMatcher
-<http://api.symfony.com/master/Symfony/Component/HttpFoundation/RequestMatcher.html>`_
+<https://api.symfony.com/master/Symfony/Component/HttpFoundation/RequestMatcher.html>`_
 for the ``pattern`` option::
 
-    use Symfony/Component/HttpFoundation/RequestMatcher;
+    use Symfony\Component\HttpFoundation\RequestMatcher;
 
     $app['security.firewalls'] = array(
         'admin' => array(
@@ -178,7 +186,7 @@ generate a valid encoded password from a raw password, use the
 
 When the user is authenticated, the user stored in the token is an instance of
 `User
-<http://api.symfony.com/master/Symfony/Component/Security/Core/User/User.html>`_
+<https://api.symfony.com/master/Symfony/Component/Security/Core/User/User.html>`_
 
 .. caution::
 
@@ -241,6 +249,10 @@ For the login form to work, create a controller like the following::
 The ``error`` and ``last_username`` variables contain the last authentication
 error and the last username entered by the user in case of an authentication
 error.
+
+If you want to have the last error message translated, you would need to use
+the ``security.authentication_utils`` service and retrieve
+the actual ``AuthenticationException`` instance.
 
 Create the associated template:
 
@@ -420,6 +432,40 @@ switch back to their primary account:
         You are an admin but you've switched to another user,
         <a href="?_switch_user=_exit"> exit</a> the switch.
     {% endif %}
+    
+Sharing Security Context between multiple Firewalls
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+By default, all the firewalls have a different **security context**. In case you
+need to share the same security context between multiple firewalls you can set
+the ``context`` setting for each firewall you want the context to be shared
+with.
+
+.. code-block:: php
+
+    $app['security.firewalls'] = array(
+        'login' => array(
+            'context' => 'admin_security',
+            'pattern' => '^/login',
+            // ...
+        ),
+        'secured' => array(
+            'context' => 'admin_security',
+            'pattern' => '^/admin/',
+            'form' => array('login_path' => '/login', 'check_path' => '/admin/login_check'),
+            'users' => array(
+                'admin' => array('ROLE_ADMIN', '$2y$10$3i9/lVd8UOFIJ6PAMFt8gu3/r5g0qeCJvoSlLCsvMTythye19F77a'),
+            ),
+            // ...
+        ),
+    );
+
+Above configuration ensures that you have the same security context
+``admin_security`` inside both, ``login`` and ``admin`` firewalls. This might be
+useful for instance to redirect already logged in users to the secured area of
+your website when they visit the login form, as you have the possibility to
+check if the user has been granted the ``ROLE_ADMIN`` role inside the ``login``
+firewall.
 
 Defining a Role Hierarchy
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -454,7 +500,7 @@ the case, the user will be automatically redirected).
 .. note::
 
     The first argument can also be a `RequestMatcher
-    <http://api.symfony.com/master/Symfony/Component/HttpFoundation/RequestMatcher.html>`_
+    <https://api.symfony.com/master/Symfony/Component/HttpFoundation/RequestMatcher.html>`_
     instance.
 
 Defining a custom User Provider
@@ -463,9 +509,9 @@ Defining a custom User Provider
 Using an array of users is simple and useful when securing an admin section of
 a personal website, but you can override this default mechanism with you own.
 
-The ``users`` setting can be defined as a service that returns an instance of
-`UserProviderInterface
-<http://api.symfony.com/master/Symfony/Component/Security/Core/User/UserProviderInterface.html>`_::
+The ``users`` setting can be defined as a service or a service id that returns
+an instance of `UserProviderInterface
+<https://api.symfony.com/master/Symfony/Component/Security/Core/User/UserProviderInterface.html>`_::
 
     'users' => function () use ($app) {
         return new UserProvider($app['db']);
@@ -519,7 +565,7 @@ store the users::
 In this example, instances of the default ``User`` class are created for the
 users, but you can define your own class; the only requirement is that the
 class must implement `UserInterface
-<http://api.symfony.com/master/Symfony/Component/Security/Core/User/UserInterface.html>`_
+<https://api.symfony.com/master/Symfony/Component/Security/Core/User/UserInterface.html>`_
 
 And here is the code that you can use to create the database schema and some
 sample users::
@@ -594,10 +640,10 @@ Defining a custom Authentication Provider
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The Symfony Security component provides a lot of ready-to-use authentication
-providers (form, HTTP, X509, remember me, ...), but you can add new ones
-easily. To register a new authentication provider, create a service named
-``security.authentication_listener.factory.XXX`` where ``XXX`` is the name you want to
-use in your configuration::
+providers (form, HTTP, X509, remember me, ...), but you can add new ones easily.
+To register a new authentication provider, create a service named
+``security.authentication_listener.factory.XXX`` where ``XXX`` is the name you
+want to use in your configuration::
 
     $app['security.authentication_listener.factory.wsse'] = $app->protect(function ($name, $options) use ($app) {
         // define the authentication provider object
@@ -675,9 +721,7 @@ Traits
 
 .. code-block:: php
 
-    $user = $app->user();
-
-    $encoded = $app->encodePassword($user, 'foo');
+    $encoded = $app->encodePassword($app['user'], 'foo');
 
 ``Silex\Route\SecurityTrait`` adds the following methods to the controllers:
 
@@ -708,4 +752,4 @@ Traits
         $app['route_class'] = 'MyRoute';
 
 
-.. _cookbook: http://symfony.com/doc/current/cookbook/security/custom_authentication_provider.html
+.. _cookbook: https://symfony.com/doc/current/cookbook/security/custom_authentication_provider.html

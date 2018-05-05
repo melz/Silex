@@ -23,9 +23,10 @@ use Symfony\Bridge\Twig\Extension\FormExtension;
 use Symfony\Bridge\Twig\Extension\SecurityExtension;
 use Symfony\Bridge\Twig\Extension\HttpFoundationExtension;
 use Symfony\Bridge\Twig\Extension\HttpKernelExtension;
+use Symfony\Bridge\Twig\Extension\WebLinkExtension;
 use Symfony\Bridge\Twig\Form\TwigRendererEngine;
-use Symfony\Bridge\Twig\Form\TwigRenderer;
 use Symfony\Bridge\Twig\Extension\HttpKernelRuntime;
+use Symfony\Component\Form\FormRenderer;
 
 /**
  * Twig integration for Silex.
@@ -36,24 +37,34 @@ class TwigServiceProvider implements ServiceProviderInterface
 {
     public function register(Container $app)
     {
-        $app['twig.options'] = array();
-        $app['twig.form.templates'] = array('form_div_layout.html.twig');
-        $app['twig.path'] = array();
-        $app['twig.templates'] = array();
+        $app['twig.options'] = [];
+        $app['twig.form.templates'] = ['form_div_layout.html.twig'];
+        $app['twig.path'] = [];
+        $app['twig.templates'] = [];
+
+        $app['twig.date.format'] = 'F j, Y H:i';
+        $app['twig.date.interval_format'] = '%d days';
+        $app['twig.date.timezone'] = null;
+
+        $app['twig.number_format.decimals'] = 0;
+        $app['twig.number_format.decimal_point'] = '.';
+        $app['twig.number_format.thousands_separator'] = ',';
 
         $app['twig'] = function ($app) {
-            $app['twig.options'] = array_replace(
-                array(
-                    'charset' => $app['charset'],
-                    'debug' => $app['debug'],
-                    'strict_variables' => $app['debug'],
-                ), $app['twig.options']
-            );
-
             $twig = $app['twig.environment_factory']($app);
             // registered for BC, but should not be used anymore
             // deprecated and should probably be removed in Silex 3.0
             $twig->addGlobal('app', $app);
+
+            $coreExtension = $twig->getExtension('Twig_Extension_Core');
+
+            $coreExtension->setDateFormat($app['twig.date.format'], $app['twig.date.interval_format']);
+
+            if (null !== $app['twig.date.timezone']) {
+                $coreExtension->setTimezone($app['twig.date.timezone']);
+            }
+
+            $coreExtension->setNumberFormat($app['twig.number_format.decimals'], $app['twig.number_format.decimal_point'], $app['twig.number_format.thousands_separator']);
 
             if ($app['debug']) {
                 $twig->addExtension(new \Twig_Extension_Debug());
@@ -106,10 +117,10 @@ class TwigServiceProvider implements ServiceProviderInterface
                     $app['twig.form.renderer'] = function ($app) {
                         $csrfTokenManager = isset($app['csrf.token_manager']) ? $app['csrf.token_manager'] : null;
 
-                        return new TwigRenderer($app['twig.form.engine'], $csrfTokenManager);
+                        return new FormRenderer($app['twig.form.engine'], $csrfTokenManager);
                     };
 
-                    $twig->addExtension(new FormExtension($app['twig.form.renderer']));
+                    $twig->addExtension(new FormExtension());
 
                     // add loader for Symfony built-in form templates
                     $reflected = new \ReflectionClass('Symfony\Bridge\Twig\Extension\FormExtension');
@@ -121,16 +132,24 @@ class TwigServiceProvider implements ServiceProviderInterface
                     $twig->addExtension(new DumpExtension($app['var_dumper.cloner']));
                 }
 
-                if (class_exists(HttpKernelRuntime::class)) {
-                    $twig->addRuntimeLoader($app['twig.runtime_loader']);
-                }
+                $twig->addRuntimeLoader($app['twig.runtime_loader']);
+                $twig->addExtension(new WebLinkExtension($app['request_stack']));
             }
 
             return $twig;
         };
 
         $app['twig.loader.filesystem'] = function ($app) {
-            return new \Twig_Loader_Filesystem($app['twig.path']);
+            $loader = new \Twig_Loader_Filesystem();
+            foreach (is_array($app['twig.path']) ? $app['twig.path'] : [$app['twig.path']] as $key => $val) {
+                if (is_string($key)) {
+                    $loader->addPath($key, $val);
+                } else {
+                    $loader->addPath($val);
+                }
+            }
+
+            return $loader;
         };
 
         $app['twig.loader.array'] = function ($app) {
@@ -138,14 +157,18 @@ class TwigServiceProvider implements ServiceProviderInterface
         };
 
         $app['twig.loader'] = function ($app) {
-            return new \Twig_Loader_Chain(array(
+            return new \Twig_Loader_Chain([
                 $app['twig.loader.array'],
                 $app['twig.loader.filesystem'],
-            ));
+            ]);
         };
 
         $app['twig.environment_factory'] = $app->protect(function ($app) {
-            return new \Twig_Environment($app['twig.loader'], $app['twig.options']);
+            return new \Twig_Environment($app['twig.loader'], array_replace([
+                'charset' => $app['charset'],
+                'debug' => $app['debug'],
+                'strict_variables' => $app['debug'],
+            ], $app['twig.options']));
         });
 
         $app['twig.runtime.httpkernel'] = function ($app) {
@@ -153,10 +176,10 @@ class TwigServiceProvider implements ServiceProviderInterface
         };
 
         $app['twig.runtimes'] = function ($app) {
-            return array(
+            return [
                 HttpKernelRuntime::class => 'twig.runtime.httpkernel',
-                TwigRenderer::class => 'twig.form.renderer',
-            );
+                FormRenderer::class => 'twig.form.renderer',
+            ];
         };
 
         $app['twig.runtime_loader'] = function ($app) {

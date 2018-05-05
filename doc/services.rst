@@ -2,7 +2,7 @@ Services
 ========
 
 Silex is not only a framework, it is also a service container. It does this by
-extending `Pimple <http://pimple.sensiolabs.org>`_ which provides a very simple
+extending `Pimple <https://pimple.symfony.com>`_ which provides a very simple
 service container.
 
 Dependency Injection
@@ -159,7 +159,37 @@ using the ``protect`` method::
     // calling it now
     echo $add(2, 3);
 
-Note that protected closures do not get access to the container.
+Note that the container is not provided as an argument to protected closures.
+However, you can inject it via `use($app)`::
+
+    $app['closure_parameter'] = $app->protect(function ($a, $b) use ($app) {
+        // ...
+    });
+
+Modify services after definition
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Sometimes you want to alter a service after its definition. Pimple facilitates
+this by extending the already defined service.
+
+First argument of the ``extend`` method is the name of the service you want to
+modify. Second argument is a callable. This callable is executed with the service
+you want to alter as its first argument, the service container itself is provided
+in the second argument.
+
+.. note::
+
+    Be sure to return the modified service in the callable.
+
+You can use this pattern to add functionality to :doc:Twig <providers/twig> for
+example::
+
+    $app->extend('twig', function($twig, $app) {
+        $twig->addGlobal('pi', 3.14);
+        $twig->addFilter('levenshtein', new \Twig_Filter_Function('levenshtein'));
+        
+        return $twig;
+    });
 
 Core services
 -------------
@@ -167,7 +197,7 @@ Core services
 Silex defines a range of services.
 
 * **request_stack**: Controls the lifecycle of requests, an instance of
-  `RequestStack <http://api.symfony.com/master/Symfony/Component/HttpFoundation/RequestStack.html>`_.
+  `RequestStack <https://api.symfony.com/master/Symfony/Component/HttpFoundation/RequestStack.html>`_.
   It gives you access to ``GET``, ``POST`` parameters and lots more!
 
   Example usage::
@@ -179,13 +209,13 @@ Silex defines a range of services.
   or an error handler.
 
 * **routes**: The `RouteCollection
-  <http://api.symfony.com/master/Symfony/Component/Routing/RouteCollection.html>`_
+  <https://api.symfony.com/master/Symfony/Component/Routing/RouteCollection.html>`_
   that is used internally. You can add, modify, read routes.
 
 * **url_generator**: An instance of `UrlGenerator
-  <http://api.symfony.com/master/Symfony/Component/Routing/Generator/UrlGenerator.html>`_,
+  <https://api.symfony.com/master/Symfony/Component/Routing/Generator/UrlGenerator.html>`_,
   using the `RouteCollection
-  <http://api.symfony.com/master/Symfony/Component/Routing/RouteCollection.html>`_
+  <https://api.symfony.com/master/Symfony/Component/Routing/RouteCollection.html>`_
   that is provided through the ``routes`` service. It has a ``generate``
   method, which takes the route name as an argument, followed by an array of
   route parameters.
@@ -194,17 +224,17 @@ Silex defines a range of services.
   Check the :doc:`Internals chapter <internals>` for more information.
 
 * **dispatcher**: The `EventDispatcher
-  <http://api.symfony.com/master/Symfony/Component/EventDispatcher/EventDispatcher.html>`_
+  <https://api.symfony.com/master/Symfony/Component/EventDispatcher/EventDispatcher.html>`_
   that is used internally. It is the core of the Symfony system and is used
   quite a bit by Silex.
 
 * **resolver**: The `ControllerResolver
-  <http://api.symfony.com/master/Symfony/Component/HttpKernel/Controller/ControllerResolver.html>`_
+  <https://api.symfony.com/master/Symfony/Component/HttpKernel/Controller/ControllerResolver.html>`_
   that is used internally. It takes care of executing the controller with the
   right arguments.
 
 * **kernel**: The `HttpKernel
-  <http://api.symfony.com/master/Symfony/Component/HttpKernel/HttpKernel.html>`_
+  <https://api.symfony.com/master/Symfony/Component/HttpKernel/HttpKernel.html>`_
   that is used internally. The HttpKernel is the heart of Symfony, it takes a
   Request as input and returns a Response as output.
 
